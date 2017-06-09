@@ -6,7 +6,7 @@ import java.util.logging.Logger;
 public class ThreadSafeSet<T extends Comparable<T>> implements LockFreeSet<T> {
     private static final int CLEAR = 0;
     private static final int REMOVE = 1;
-    private static final int MOVE = 2;
+
     private final Node<T> root = new Node<>();
 
     private Node<T> findPrev(T obj) {
@@ -39,27 +39,24 @@ public class ThreadSafeSet<T extends Comparable<T>> implements LockFreeSet<T> {
     public boolean remove(T value) {
         while (true) {
             Node<T> prev = findPrev(value);
-            Node<T> next = prev.next.getReference();
+            Node<T> cur = prev.next.getReference();
 
-            if (next == null) {
+            if (cur == null) {
                 return false;
             }
 
-            if (!value.equals(next.obj)) {
+            if (!value.equals(cur.obj)) {
                 continue;
             }
 
-            if (!prev.next.compareAndSet(next, next, CLEAR, REMOVE)) {
+            Node<T> next = cur.next.getReference();
+            if (cur.next.getStamp() != REMOVE && !cur.next.compareAndSet(next, next, CLEAR, REMOVE)) {
                 continue;
             }
 
-            Node<T> nnext = next.next.getReference();
-            if (!next.next.compareAndSet(nnext, nnext, CLEAR, MOVE)) {
-                prev.next.set(next, CLEAR);
+            if (!prev.next.compareAndSet(cur, next, CLEAR, CLEAR)) {
                 continue;
             }
-
-            prev.next.set(nnext, CLEAR);
 
             return true;
         }
